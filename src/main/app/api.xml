@@ -1,0 +1,241 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mule xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:apikit="http://www.mulesoft.org/schema/mule/apikit" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:dw="http://www.mulesoft.org/schema/mule/ee/dw" xmlns:http="http://www.mulesoft.org/schema/mule/http" xmlns:scripting="http://www.mulesoft.org/schema/mule/scripting" xmlns:spring="http://www.springframework.org/schema/beans" xmlns:tls="http://www.mulesoft.org/schema/mule/tls" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/ee/dw http://www.mulesoft.org/schema/mule/ee/dw/current/dw.xsd
+http://www.mulesoft.org/schema/mule/scripting http://www.mulesoft.org/schema/mule/scripting/current/mule-scripting.xsd
+http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/apikit http://www.mulesoft.org/schema/mule/apikit/current/mule-apikit.xsd
+http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-3.1.xsd
+http://www.mulesoft.org/schema/mule/tls http://www.mulesoft.org/schema/mule/tls/current/mule-tls.xsd">
+    <http:listener-config name="api-httpListenerConfig" host="0.0.0.0" port="${https.port}" doc:name="HTTP Listener Configuration" protocol="HTTPS">
+        <tls:context>
+            <tls:key-store type="jks" path="${keystore.path}" keyPassword="${keystore.password}" password="${keystore.password}" />
+        </tls:context>
+    </http:listener-config>
+    <apikit:config name="api-config" raml="api.raml" extensionEnabled="true" consoleEnabled="false" doc:name="Router" />
+    <flow name="api-main">
+        <http:listener config-ref="api-httpListenerConfig" path="/api/*" doc:name="HTTP" />
+        <apikit:router config-ref="api-config" doc:name="APIkit Router" />
+        <exception-strategy ref="api-apiKitGlobalExceptionMapping" doc:name="Reference Exception Strategy" />
+    </flow>
+    <flow name="api-console">
+        <http:listener config-ref="api-httpListenerConfig" path="/console/*" doc:name="HTTP" />
+        <apikit:console config-ref="api-config" doc:name="APIkit Console" />
+    </flow>
+    <sub-flow name="getById_SubFlow">
+        <logger message="Called by id: #[flowVars.id]" level="INFO" doc:name="Logger" />
+        <http:request config-ref="HTTP_Request_Order_Configuration" path="/orders/{id}" method="GET" doc:name="HTTP">
+            <http:request-builder>
+                <http:uri-param paramName="id" value="#[flowVars.id]" />
+            </http:request-builder>
+        </http:request>
+        <dw:transform-message doc:name="Transform Message">
+            <dw:set-payload><![CDATA[%dw 1.0
+%output application/json
+---
+{
+	entries: [{
+		accountId: null,
+		id: payload.orderId,
+		name: null,
+		orderDate: payload.createdDateTime,
+		sourceSystem: payload.sourceSystem,
+		status: payload.status,
+		totalPrice: payload.totalPrice,
+		trackingNumber: payload.trackingNumber
+	}]
+}]]></dw:set-payload>
+        </dw:transform-message>
+    </sub-flow>
+    <flow name="trueone">
+        <logger message="Get Orders was Called!" level="INFO" doc:name="Logger" />
+        <set-variable variableName="mfilter" value="#[message.inboundProperties.'http.query.params'.filter]" doc:name="Variable" />
+        <dw:transform-message doc:name="Transform Message">
+            <dw:set-payload><![CDATA[%dw 1.0
+%output application/java
+%var tFilter = (flowVars.mfilter splitBy " ") when flowVars.mfilter != null otherwise []
+---
+{
+	accountId: ((tFilter[2] replace "'" with "") replace ")" with "") when ((tFilter[0] replace "(" with "") == 'accountId') otherwise null,
+	orderId: ((tFilter[2] replace "'" with "")  replace ")" with "") when ((tFilter[0] replace "(" with "") == 'id') otherwise null,
+	caseId: ((tFilter[2] replace "'" with "")  replace ")" with "") when ((tFilter[0] replace "(" with "") == 'caseId') otherwise null,
+	isFilter: true when (flowVars.mfilter != null) otherwise false
+}]]></dw:set-payload>
+        </dw:transform-message>
+        <choice doc:name="Choice - Which Query">
+            <when expression="#[payload.orderId != null]">
+                <set-variable variableName="id" value="#[payload.orderId]" doc:name="Set id flow var" />
+                <flow-ref name="getById_SubFlow" doc:name="getById_SubFlow" />
+            </when>
+            <when expression="#[payload.accountId != null]">
+                <logger message="Filter accountId: #[payload.accountId]" level="INFO" doc:name="Logger" />
+                <http:request config-ref="HTTP_Request_Order_Configuration" path="/customerOrders/{id}" method="GET" doc:name="HTTP">
+                    <http:request-builder>
+                        <http:uri-param paramName="id" value="#[payload.accountId]" />
+                    </http:request-builder>
+                    <http:success-status-code-validator values="200,500,404" />
+                </http:request>
+                <dw:transform-message doc:name="Transform Message">
+                    <dw:set-payload><![CDATA[%dw 1.0
+%output application/json
+---
+{ entries:
+		(payload.historyOrders map ((historyOrder , indexOfHistoryOrder) -> {
+			accountId: historyOrder.customerId,
+			id: historyOrder.orderId,
+			orderDate: historyOrder.createdDateTime,
+			sourceSystem: historyOrder.sourceSystem,
+			status: historyOrder.status,
+			totalPrice: historyOrder.totalPrice,
+			trackingNumber: historyOrder.trackingNumber
+		})) when inboundProperties.'http.status' == 200 otherwise []
+}]]></dw:set-payload>
+                </dw:transform-message>
+            </when>
+            <when expression="#[payload.caseId != null]">
+                <logger message="Filter CaseId: #[payload.caseId]" level="INFO" doc:name="Logger" />
+                <set-variable variableName="caseId" value="#[payload.caseId]" doc:name="Variable" />
+                <http:request config-ref="HTTP_Request_Order_Configuration" path="/customerOrders/cases/{id}" method="GET" doc:name="HTTP">
+                    <http:request-builder>
+                        <http:uri-param paramName="id" value="#[payload.caseId]" />
+                    </http:request-builder>
+                    <http:success-status-code-validator values="200,500,404" />
+                </http:request>
+                <dw:transform-message doc:name="Transform Message">
+                    <dw:set-payload><![CDATA[%dw 1.0
+%output application/json
+---
+{ entries:
+		(payload.historyOrders map ((historyOrder , indexOfHistoryOrder) -> {
+			accountId: historyOrder.customerId,
+			caseId: flowVars.caseId,
+			id: historyOrder.orderId,
+			orderDate: historyOrder.createdDateTime,
+			sourceSystem: historyOrder.sourceSystem,
+			status: historyOrder.status,
+			totalPrice: historyOrder.totalPrice,
+			trackingNumber: historyOrder.trackingNumber
+		})) when inboundProperties.'http.status' == 200 otherwise []
+}]]></dw:set-payload>
+                </dw:transform-message>
+            </when>
+            <otherwise>
+                <scripting:transformer doc:name="Groovy - Throw 404">
+                    <scripting:script engine="Groovy"><![CDATA[throw new org.mule.module.apikit.exception.NotFoundException("Not found");]]></scripting:script>
+                </scripting:transformer>
+            </otherwise>
+        </choice>
+    </flow>
+    <flow name="put:/orders/{id}:application/json:api-config">
+        <set-property propertyName="Content-Type" value="application/json" doc:name="Property"/>
+        <set-payload value="#[NullPayload.getInstance()]" doc:name="Set Payload"/>
+    </flow>
+    <flow name="delete:/orders/{id}:api-config">
+        <set-payload value="#[NullPayload.getInstance()]" doc:name="Set Payload"/>
+    </flow>
+    <flow name="get:/orders:api-config">
+        <logger message="Get Orders was Called!" level="INFO" category="@@@@" doc:name="Logger"/>
+        <dw:transform-message doc:name="Transform Message">
+            <dw:set-payload><![CDATA[%dw 1.0
+%output application/json
+---
+{
+	"entries": [
+		{       
+			"accountId": "0010b00002BKlrbAAD",
+	        "id": "0000021117",       
+	        "caseId": "5000b00001JCWYRAA5",
+	         "orderDate": "2018-03-13",       
+	         "sourceSystem": "SAP",       
+	         "status": "confirmed",       
+	         "totalPrice": 500,       
+	         "trackingNumber": "0000021117"     
+	     },     
+	     {       
+	     	"accountId": "0010b00002BKlrbAAD",       
+	     	"id": "0000021118",       
+	        "caseId": "5000b00001JCWYRAA5",	     	
+	     	"orderDate": "2018-03-13",       
+	     	"sourceSystem": "SAP",       
+	     	"status": "confirmed",       
+	     	"totalPrice": 500,       
+	     	"trackingNumber": "0000021118"     
+	     },     
+	     {       
+	     	"accountId": "0010b00002BKlrbAAD",       
+	     	"id": "0000021128",       
+	        "caseId": "5000b00001JCWYRAA5",	     	
+	     	"orderDate": "2018-03-29",       
+	     	"sourceSystem": "SAP",       
+	     	"status": "confirmed",       
+	     	"totalPrice": 5000,       
+	     	"trackingNumber": "0000021128"     
+	     },     
+	     {       
+	     	"accountId": "0010b00002BKlrbAAD",       
+	     	"id": "0000021133",       
+	        "caseId": "5000b00001JCWYRAA5",	     	
+	     	"orderDate": "2018-04-10",       
+	     	"sourceSystem": "SAP",       
+	     	"status": "confirmed",       
+	     	"totalPrice": 2500,       
+	     	"trackingNumber": "0000021133"     
+	     }
+	]
+}]]></dw:set-payload>
+        </dw:transform-message>
+        <logger message="#[payload]" level="INFO" doc:name="Logger"/>
+    </flow>
+    <flow name="get:/orders/{id}:api-config">
+        <logger message="Call Get By ID" level="INFO" category="@@@@@@@" doc:name="Logger"/>
+        <dw:transform-message doc:name="Transform Message">
+            <dw:set-payload><![CDATA[%dw 1.0
+%output application/json
+---
+{   
+	"entries": [     
+		{       
+			"accountId": "0010b00002BKlrbAAD",       
+			"id": "0000021117",       
+			"orderDate": "2018-03-13",       
+			"sourceSystem": "SAP",       
+			"status": "confirmed",       
+			"totalPrice": 500,       
+			"trackingNumber": "0000021117"     
+		}
+	] 
+}]]></dw:set-payload>
+        </dw:transform-message>
+        <logger message="#[payload]" level="INFO" doc:name="Logger"/>
+        <!-- <flow-ref name="getById_SubFlow" doc:name="getById_SubFlow"/> -->
+    </flow>
+    <flow name="post:/orders:application/json:api-config">
+        <set-payload value="#[NullPayload.getInstance()]" doc:name="Set Payload"/>
+    </flow>
+    <apikit:mapping-exception-strategy name="api-apiKitGlobalExceptionMapping">
+        <apikit:mapping statusCode="404">
+            <apikit:exception value="org.mule.module.apikit.exception.NotFoundException" />
+            <set-property propertyName="Content-Type" value="application/json" doc:name="Property" />
+            <set-payload value="{ &quot;message&quot;: &quot;Resource not found&quot; }" doc:name="Set Payload" />
+        </apikit:mapping>
+        <apikit:mapping statusCode="405">
+            <apikit:exception value="org.mule.module.apikit.exception.MethodNotAllowedException" />
+            <set-property propertyName="Content-Type" value="application/json" doc:name="Property" />
+            <set-payload value="{ &quot;message&quot;: &quot;Method not allowed&quot; }" doc:name="Set Payload" />
+        </apikit:mapping>
+        <apikit:mapping statusCode="415">
+            <apikit:exception value="org.mule.module.apikit.exception.UnsupportedMediaTypeException" />
+            <set-property propertyName="Content-Type" value="application/json" doc:name="Property" />
+            <set-payload value="{ &quot;message&quot;: &quot;Unsupported media type&quot; }" doc:name="Set Payload" />
+        </apikit:mapping>
+        <apikit:mapping statusCode="406">
+            <apikit:exception value="org.mule.module.apikit.exception.NotAcceptableException" />
+            <set-property propertyName="Content-Type" value="application/json" doc:name="Property" />
+            <set-payload value="{ &quot;message&quot;: &quot;Not acceptable&quot; }" doc:name="Set Payload" />
+        </apikit:mapping>
+        <apikit:mapping statusCode="400">
+            <apikit:exception value="org.mule.module.apikit.exception.BadRequestException" />
+            <set-property propertyName="Content-Type" value="application/json" doc:name="Property" />
+            <set-payload value="{ &quot;message&quot;: &quot;Bad request&quot; }" doc:name="Set Payload" />
+        </apikit:mapping>
+    </apikit:mapping-exception-strategy>
+</mule>

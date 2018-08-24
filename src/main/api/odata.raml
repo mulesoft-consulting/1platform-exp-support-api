@@ -1,0 +1,53 @@
+#%RAML 1.0 Library
+uses:
+  odata: libraries/odataLibrary.raml
+
+types:
+  orders:
+    (odata.remote): Orders
+    properties:
+      id:
+        type: string
+        (odata.key): true
+        (odata.nullable): false
+        required: true
+        maxLength: 10
+      name:
+        type: string
+        (odata.nullable): false
+        (odata.key): false
+        maxLength: 40
+      accountId:
+        type: string
+        (odata.nullable): false
+        (odata.key): false
+        maxLength: 10
+      caseId:
+        type: string
+        (odata.nullable): false
+        (odata.key): false
+        maxLength: 10
+      orderDate:
+        type: date-only
+        (odata.nullable): true
+        (odata.key): false
+      sourceSystem:
+        type: string
+        (odata.nullable): false
+        (odata.key): false
+        maxLength: 15
+      status:
+        type: string
+        (odata.nullable): false
+        (odata.key): false
+        maxLength: 15
+      totalPrice:
+        type: number
+        (odata.nullable): true
+        (odata.key): false
+        format: float
+      trackingNumber:
+        type: string
+        (odata.nullable): false
+        (odata.key): false
+        maxLength: 50
