@@ -29,6 +29,10 @@ http://www.mulesoft.org/schema/mule/ee/tracking http://www.mulesoft.org/schema/m
         <http:request config-ref="HTTP_Request_Order_Configuration" path="/orders/{id}" method="GET" doc:name="Get Orders By Order ID">
             <http:request-builder>
                 <http:uri-param paramName="id" value="#[flowVars.id]"/>
+                <http:header headerName="Accept" value="application/json"/>
+                <http:header headerName="Content-Type" value="application/json"/>
+               	<http:header headerName="client_id" value="${api.client_id}"/>
+                <http:header headerName="client_secret" value="${api.client_secret}"/>
             </http:request-builder>
         </http:request>
         <dw:transform-message doc:name="Build Response">
@@ -59,21 +63,26 @@ http://www.mulesoft.org/schema/mule/ee/tracking http://www.mulesoft.org/schema/m
         <http:request config-ref="HTTP_Request_Order_Configuration" path="/orders" method="GET" doc:name="Get Orders By Account ID">
             <http:request-builder>
                 <http:query-param paramName="customerId" value="#[payload.accountId]"/>
+                <http:header headerName="Accept" value="application/json"/>
+                <http:header headerName="Content-Type" value="application/json"/>
+                <http:header headerName="client_id" value="${api.client_id}"/>
+                <http:header headerName="client_secret" value="${api.client_secret}"/>
             </http:request-builder>
         </http:request>
         <dw:transform-message doc:name="Build Response">
+            <dw:input-payload doc:sample="sample_data/json.json"/>
             <dw:set-payload><![CDATA[%dw 1.0
 %output application/json
 ---
 { entries:
-		(payload.historyOrders map ((historyOrder , indexOfHistoryOrder) -> {
-			accountId: historyOrder.customerId,
-			id: historyOrder.orderId,
-			orderDate: historyOrder.createdDateTime,
-			sourceSystem: historyOrder.sourceSystem,
-			status: historyOrder.status,
-			totalPrice: historyOrder.totalPrice,
-			trackingNumber: historyOrder.trackingNumber
+		(payload.orders map ((order , indexOfOrder) -> {
+			accountId: order.customerId,
+			id: order.orderId,
+			orderDate: order.orderDateTime,
+			sourceSystem: order.sourceSystem,
+			status: order.status,
+			totalPrice: order.totalAmount,
+			trackingNumber: order.trackingNumber
 		})) when inboundProperties.'http.status' == 200 otherwise []
 }]]></dw:set-payload>
             <dw:set-property propertyName="http.status"><![CDATA[%dw 1.0
@@ -110,12 +119,6 @@ http://www.mulesoft.org/schema/mule/ee/tracking http://www.mulesoft.org/schema/m
                 <logger message="Filter CaseId: #[payload.caseId]" level="INFO" doc:name="Logger" />
                 <set-variable variableName="caseId" value="#[payload.caseId]" doc:name="Variable" />
                 <flow-ref name="getAccountByCaseIdFlow" doc:name="Call Accounts By Case ID"/>
-<!--                 <http:request config-ref="HTTP_Request_Order_Configuration" path="/customerOrders/cases/{id}" method="GET" doc:name="Get Orders By Case ID">
-                    <http:request-builder>
-                        <http:uri-param paramName="id" value="#[payload.caseId]" />
-                    </http:request-builder>
-                    <http:success-status-code-validator values="200,500,404" />
-                </http:request> -->
             </when>
             <otherwise>
                 <scripting:transformer doc:name="Groovy - Throw 404">
@@ -132,19 +135,30 @@ http://www.mulesoft.org/schema/mule/ee/tracking http://www.mulesoft.org/schema/m
         <set-payload value="#[NullPayload.getInstance()]" doc:name="Set Payload"/>
     </flow>
     <flow name="getAccountByCaseIdFlow">
+        <logger message="&quot;Estoy en subfow&quot;" level="INFO" category="&quot;@@@@@@@&quot;" doc:name="Logger"/>
         <http:request config-ref="HTTP_Request_SFDC_Account_Configuration" path="/accounts" method="GET" doc:name="Get Account By Case ID">
             <http:request-builder>
                 <http:query-param paramName="caseId" value="#[flowVars.caseId]"/>
+                <http:header headerName="Accept" value="application/json"/>
+                <http:header headerName="Content-Type" value="application/json"/>
+                <http:header headerName="client_id" value="${api.client_id}"/>
+                <http:header headerName="client_secret" value="${api.client_secret}"/>
             </http:request-builder>
         </http:request>
-        <object-to-string-transformer doc:name="Object to String"/>
-        <validation:is-true exceptionClass="org.mule.module.apikit.exception.NotFoundException" expression="#[payload.length() &gt; 0]" doc:name="Validate is not empty"/>
+        <logger message="#[payload:java.lang.String]" level="INFO" doc:name="Logger"/>
+        <dw:transform-message doc:name="Transform Message">
+            <dw:set-payload><![CDATA[%dw 1.0
+%output application/java
+---
+payload]]></dw:set-payload>
+        </dw:transform-message>
+        <validation:is-true exceptionClass="org.mule.module.apikit.exception.NotFoundException" expression="#[payload.accounts.size() &gt; 0]" doc:name="Validate is not empty"/>
         <dw:transform-message doc:name="Transform Message">
             <dw:set-payload><![CDATA[%dw 1.0
 %output application/java
 ---
 {
-	accountId: payload.id
+	accountId: payload.accounts[0].id
 }]]></dw:set-payload>
         </dw:transform-message>
         <flow-ref name="getOrdersByAccountSubFlow" doc:name="Call Get Orders By ID"/>
