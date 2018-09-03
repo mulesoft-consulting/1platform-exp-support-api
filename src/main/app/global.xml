@@ -8,5 +8,8 @@ http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/cor
 http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context-current.xsd
 http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd">
     <context:property-placeholder location="classpath:/api.properties"/>
-    <http:request-config name="HTTP_Request_Order_Configuration" host="${api.customer.order.host}" port="${api.customer.order.port}" basePath="/api" doc:name="HTTP Request Configuration"/>
+    <http:request-config name="HTTP_Request_Order_Configuration" host="${api.customer360.host}" port="${api.customer360.port}" basePath="/exchange/b2cc42af-8763-43cf-a316-246ce7aefd04/customer-360/1.0.7/v1" doc:name="HTTP Request Configuration" protocol="HTTPS">
+        <http:raml-api-configuration location="https://anypoint.mulesoft.com/api/v1/organizations/b2cc42af-8763-43cf-a316-246ce7aefd04/assets/b2cc42af-8763-43cf-a316-246ce7aefd04/customer-360/1.0.7/api/root"/>
+    </http:request-config>
+    <http:request-config name="HTTP_Request_SFDC_Account_Configuration" protocol="HTTPS" host="${api.sfdc.account.host}" port="${api.sfdc.account.port}" basePath="/api" doc:name="HTTP Request Configuration"/>
 </mule>

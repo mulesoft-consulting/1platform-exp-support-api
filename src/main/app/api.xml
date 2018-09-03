@@ -1,11 +1,14 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<mule xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:apikit="http://www.mulesoft.org/schema/mule/apikit" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:dw="http://www.mulesoft.org/schema/mule/ee/dw" xmlns:http="http://www.mulesoft.org/schema/mule/http" xmlns:scripting="http://www.mulesoft.org/schema/mule/scripting" xmlns:spring="http://www.springframework.org/schema/beans" xmlns:tls="http://www.mulesoft.org/schema/mule/tls" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/ee/dw http://www.mulesoft.org/schema/mule/ee/dw/current/dw.xsd
+<mule xmlns:tracking="http://www.mulesoft.org/schema/mule/ee/tracking" xmlns:validation="http://www.mulesoft.org/schema/mule/validation" xmlns:account-apispec="http://www.mulesoft.org/schema/mule/account-apispec" xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:apikit="http://www.mulesoft.org/schema/mule/apikit" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:dw="http://www.mulesoft.org/schema/mule/ee/dw" xmlns:http="http://www.mulesoft.org/schema/mule/http" xmlns:scripting="http://www.mulesoft.org/schema/mule/scripting" xmlns:spring="http://www.springframework.org/schema/beans" xmlns:tls="http://www.mulesoft.org/schema/mule/tls" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/ee/dw http://www.mulesoft.org/schema/mule/ee/dw/current/dw.xsd
 http://www.mulesoft.org/schema/mule/scripting http://www.mulesoft.org/schema/mule/scripting/current/mule-scripting.xsd
 http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
 http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
 http://www.mulesoft.org/schema/mule/apikit http://www.mulesoft.org/schema/mule/apikit/current/mule-apikit.xsd
 http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-3.1.xsd
-http://www.mulesoft.org/schema/mule/tls http://www.mulesoft.org/schema/mule/tls/current/mule-tls.xsd">
+http://www.mulesoft.org/schema/mule/tls http://www.mulesoft.org/schema/mule/tls/current/mule-tls.xsd
+http://www.mulesoft.org/schema/mule/account-apispec http://www.mulesoft.org/schema/mule/account-apispec/current/mule-account-apispec.xsd
+http://www.mulesoft.org/schema/mule/validation http://www.mulesoft.org/schema/mule/validation/current/mule-validation.xsd
+http://www.mulesoft.org/schema/mule/ee/tracking http://www.mulesoft.org/schema/mule/ee/tracking/current/mule-tracking-ee.xsd">
     <http:listener-config name="api-httpListenerConfig" host="0.0.0.0" port="${https.port}" doc:name="HTTP Listener Configuration" protocol="HTTPS">
         <tls:context>
             <tls:key-store type="jks" path="${keystore.path}" keyPassword="${keystore.password}" password="${keystore.password}" />
@@ -21,32 +24,65 @@ http://www.mulesoft.org/schema/mule/tls http://www.mulesoft.org/schema/mule/tls/
         <http:listener config-ref="api-httpListenerConfig" path="/console/*" doc:name="HTTP" />
         <apikit:console config-ref="api-config" doc:name="APIkit Console" />
     </flow>
-    <sub-flow name="getById_SubFlow">
+    <sub-flow name="getOrderdByIdSubFlow">
         <logger message="Called by id: #[flowVars.id]" level="INFO" doc:name="Logger" />
-        <http:request config-ref="HTTP_Request_Order_Configuration" path="/orders/{id}" method="GET" doc:name="HTTP">
+        <http:request config-ref="HTTP_Request_Order_Configuration" path="/orders/{id}" method="GET" doc:name="Get Orders By Order ID">
             <http:request-builder>
-                <http:uri-param paramName="id" value="#[flowVars.id]" />
+                <http:uri-param paramName="id" value="#[flowVars.id]"/>
             </http:request-builder>
         </http:request>
-        <dw:transform-message doc:name="Transform Message">
+        <dw:transform-message doc:name="Build Response">
             <dw:set-payload><![CDATA[%dw 1.0
 %output application/json
+%var order = payload[0]
 ---
 {
 	entries: [{
-		accountId: null,
-		id: payload.orderId,
+		accountId: order.customerId,
+		id: order.orderId,
 		name: null,
-		orderDate: payload.createdDateTime,
-		sourceSystem: payload.sourceSystem,
-		status: payload.status,
-		totalPrice: payload.totalPrice,
-		trackingNumber: payload.trackingNumber
+		orderDate: order.orderDateTime,
+		sourceSystem: order.sourceSystem,
+		status: order.status,
+		totalPrice: order.totalAmount,
+		trackingNumber: order.trackingNumber
 	}]
 }]]></dw:set-payload>
+            <dw:set-property propertyName="http.status"><![CDATA[%dw 1.0
+%output application/java
+---
+200]]></dw:set-property>
         </dw:transform-message>
     </sub-flow>
-    <flow name="trueone">
+    <sub-flow name="getOrdersByAccountSubFlow">
+        <logger level="INFO" doc:name="Logger" message="Called by id: #[payload.accountId]"/>
+        <http:request config-ref="HTTP_Request_Order_Configuration" path="/orders" method="GET" doc:name="Get Orders By Account ID">
+            <http:request-builder>
+                <http:query-param paramName="customerId" value="#[payload.accountId]"/>
+            </http:request-builder>
+        </http:request>
+        <dw:transform-message doc:name="Build Response">
+            <dw:set-payload><![CDATA[%dw 1.0
+%output application/json
+---
+{ entries:
+		(payload.historyOrders map ((historyOrder , indexOfHistoryOrder) -> {
+			accountId: historyOrder.customerId,
+			id: historyOrder.orderId,
+			orderDate: historyOrder.createdDateTime,
+			sourceSystem: historyOrder.sourceSystem,
+			status: historyOrder.status,
+			totalPrice: historyOrder.totalPrice,
+			trackingNumber: historyOrder.trackingNumber
+		})) when inboundProperties.'http.status' == 200 otherwise []
+}]]></dw:set-payload>
+            <dw:set-property propertyName="http.status"><![CDATA[%dw 1.0
+%output application/java
+---
+200]]></dw:set-property>
+        </dw:transform-message>
+    </sub-flow>
+    <flow name="get:/orders:api-config">
         <logger message="Get Orders was Called!" level="INFO" doc:name="Logger" />
         <set-variable variableName="mfilter" value="#[message.inboundProperties.'http.query.params'.filter]" doc:name="Variable" />
         <dw:transform-message doc:name="Transform Message">
@@ -64,59 +100,22 @@ http://www.mulesoft.org/schema/mule/tls http://www.mulesoft.org/schema/mule/tls/
         <choice doc:name="Choice - Which Query">
             <when expression="#[payload.orderId != null]">
                 <set-variable variableName="id" value="#[payload.orderId]" doc:name="Set id flow var" />
-                <flow-ref name="getById_SubFlow" doc:name="getById_SubFlow" />
+                <flow-ref name="getOrderdByIdSubFlow" doc:name="Call Get Orders By ID" />                
             </when>
             <when expression="#[payload.accountId != null]">
                 <logger message="Filter accountId: #[payload.accountId]" level="INFO" doc:name="Logger" />
-                <http:request config-ref="HTTP_Request_Order_Configuration" path="/customerOrders/{id}" method="GET" doc:name="HTTP">
-                    <http:request-builder>
-                        <http:uri-param paramName="id" value="#[payload.accountId]" />
-                    </http:request-builder>
-                    <http:success-status-code-validator values="200,500,404" />
-                </http:request>
-                <dw:transform-message doc:name="Transform Message">
-                    <dw:set-payload><![CDATA[%dw 1.0
-%output application/json
----
-{ entries:
-		(payload.historyOrders map ((historyOrder , indexOfHistoryOrder) -> {
-			accountId: historyOrder.customerId,
-			id: historyOrder.orderId,
-			orderDate: historyOrder.createdDateTime,
-			sourceSystem: historyOrder.sourceSystem,
-			status: historyOrder.status,
-			totalPrice: historyOrder.totalPrice,
-			trackingNumber: historyOrder.trackingNumber
-		})) when inboundProperties.'http.status' == 200 otherwise []
-}]]></dw:set-payload>
-                </dw:transform-message>
+                <flow-ref name="getOrdersByAccountSubFlow" doc:name="Call Get Orders by Account" />
             </when>
             <when expression="#[payload.caseId != null]">
                 <logger message="Filter CaseId: #[payload.caseId]" level="INFO" doc:name="Logger" />
                 <set-variable variableName="caseId" value="#[payload.caseId]" doc:name="Variable" />
-                <http:request config-ref="HTTP_Request_Order_Configuration" path="/customerOrders/cases/{id}" method="GET" doc:name="HTTP">
+                <flow-ref name="getAccountByCaseIdFlow" doc:name="Call Accounts By Case ID"/>
+<!--                 <http:request config-ref="HTTP_Request_Order_Configuration" path="/customerOrders/cases/{id}" method="GET" doc:name="Get Orders By Case ID">
                     <http:request-builder>
                         <http:uri-param paramName="id" value="#[payload.caseId]" />
                     </http:request-builder>
                     <http:success-status-code-validator values="200,500,404" />
-                </http:request>
-                <dw:transform-message doc:name="Transform Message">
-                    <dw:set-payload><![CDATA[%dw 1.0
-%output application/json
----
-{ entries:
-		(payload.historyOrders map ((historyOrder , indexOfHistoryOrder) -> {
-			accountId: historyOrder.customerId,
-			caseId: flowVars.caseId,
-			id: historyOrder.orderId,
-			orderDate: historyOrder.createdDateTime,
-			sourceSystem: historyOrder.sourceSystem,
-			status: historyOrder.status,
-			totalPrice: historyOrder.totalPrice,
-			trackingNumber: historyOrder.trackingNumber
-		})) when inboundProperties.'http.status' == 200 otherwise []
-}]]></dw:set-payload>
-                </dw:transform-message>
+                </http:request> -->
             </when>
             <otherwise>
                 <scripting:transformer doc:name="Groovy - Throw 404">
@@ -132,59 +131,25 @@ http://www.mulesoft.org/schema/mule/tls http://www.mulesoft.org/schema/mule/tls/
     <flow name="delete:/orders/{id}:api-config">
         <set-payload value="#[NullPayload.getInstance()]" doc:name="Set Payload"/>
     </flow>
-    <flow name="get:/orders:api-config">
-        <logger message="Get Orders was Called!" level="INFO" category="@@@@" doc:name="Logger"/>
+    <flow name="getAccountByCaseIdFlow">
+        <http:request config-ref="HTTP_Request_SFDC_Account_Configuration" path="/accounts" method="GET" doc:name="Get Account By Case ID">
+            <http:request-builder>
+                <http:query-param paramName="caseId" value="#[flowVars.caseId]"/>
+            </http:request-builder>
+        </http:request>
+        <object-to-string-transformer doc:name="Object to String"/>
+        <validation:is-true exceptionClass="org.mule.module.apikit.exception.NotFoundException" expression="#[payload.length() &gt; 0]" doc:name="Validate is not empty"/>
         <dw:transform-message doc:name="Transform Message">
             <dw:set-payload><![CDATA[%dw 1.0
-%output application/json
+%output application/java
 ---
 {
-	"entries": [
-		{       
-			"accountId": "0010b00002BKlrbAAD",
-	        "id": "0000021117",       
-	        "caseId": "5000b00001JCWYRAA5",
-	         "orderDate": "2018-03-13",       
-	         "sourceSystem": "SAP",       
-	         "status": "confirmed",       
-	         "totalPrice": 500,       
-	         "trackingNumber": "0000021117"     
-	     },     
-	     {       
-	     	"accountId": "0010b00002BKlrbAAD",       
-	     	"id": "0000021118",       
-	        "caseId": "5000b00001JCWYRAA5",	     	
-	     	"orderDate": "2018-03-13",       
-	     	"sourceSystem": "SAP",       
-	     	"status": "confirmed",       
-	     	"totalPrice": 500,       
-	     	"trackingNumber": "0000021118"     
-	     },     
-	     {       
-	     	"accountId": "0010b00002BKlrbAAD",       
-	     	"id": "0000021128",       
-	        "caseId": "5000b00001JCWYRAA5",	     	
-	     	"orderDate": "2018-03-29",       
-	     	"sourceSystem": "SAP",       
-	     	"status": "confirmed",       
-	     	"totalPrice": 5000,       
-	     	"trackingNumber": "0000021128"     
-	     },     
-	     {       
-	     	"accountId": "0010b00002BKlrbAAD",       
-	     	"id": "0000021133",       
-	        "caseId": "5000b00001JCWYRAA5",	     	
-	     	"orderDate": "2018-04-10",       
-	     	"sourceSystem": "SAP",       
-	     	"status": "confirmed",       
-	     	"totalPrice": 2500,       
-	     	"trackingNumber": "0000021133"     
-	     }
-	]
+	accountId: payload.id
 }]]></dw:set-payload>
         </dw:transform-message>
-        <logger message="#[payload]" level="INFO" doc:name="Logger"/>
+        <flow-ref name="getOrdersByAccountSubFlow" doc:name="Call Get Orders By ID"/>
     </flow>
+
     <flow name="get:/orders/{id}:api-config">
         <logger message="Call Get By ID" level="INFO" category="@@@@@@@" doc:name="Logger"/>
         <dw:transform-message doc:name="Transform Message">
