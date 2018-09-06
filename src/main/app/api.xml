@@ -31,8 +31,8 @@ http://www.mulesoft.org/schema/mule/ee/tracking http://www.mulesoft.org/schema/m
                 <http:uri-param paramName="id" value="#[flowVars.id]"/>
                 <http:header headerName="Accept" value="application/json"/>
                 <http:header headerName="Content-Type" value="application/json"/>
-               	<http:header headerName="client_id" value="${api.client_id}"/>
-                <http:header headerName="client_secret" value="${api.client_secret}"/>
+                <http:header headerName="client_id" value="${app.client_id}"/>
+                <http:header headerName="client_secret" value="${app.client_secret}"/>
             </http:request-builder>
         </http:request>
         <dw:transform-message doc:name="Build Response">
@@ -60,13 +60,13 @@ http://www.mulesoft.org/schema/mule/ee/tracking http://www.mulesoft.org/schema/m
     </sub-flow>
     <sub-flow name="getOrdersByAccountSubFlow">
         <logger level="INFO" doc:name="Logger" message="Called by id: #[payload.accountId]"/>
-        <http:request config-ref="HTTP_Request_Order_Configuration" path="/orders" method="GET" doc:name="Get Orders By Account ID">
+        <http:request config-ref="HTTP_Request_CustomerOrder_Configuration" path="/customer360s/{id}" method="GET" doc:name="Get Orders By Account ID">
             <http:request-builder>
-                <http:query-param paramName="customerId" value="#[payload.accountId]"/>
+                <http:uri-param paramName="id" value="#[payload.accountId]"/>
                 <http:header headerName="Accept" value="application/json"/>
                 <http:header headerName="Content-Type" value="application/json"/>
-                <http:header headerName="client_id" value="${api.client_id}"/>
-                <http:header headerName="client_secret" value="${api.client_secret}"/>
+                <http:header headerName="client_id" value="${app.client_id}"/>
+                <http:header headerName="client_secret" value="${app.client_secret}"/>
             </http:request-builder>
         </http:request>
         <dw:transform-message doc:name="Build Response">
@@ -76,7 +76,7 @@ http://www.mulesoft.org/schema/mule/ee/tracking http://www.mulesoft.org/schema/m
 ---
 { entries:
 		(payload.orders map ((order , indexOfOrder) -> {
-			accountId: order.customerId,
+			accountId: payload.id,
 			id: order.orderId,
 			orderDate: order.orderDateTime,
 			sourceSystem: order.sourceSystem,
@@ -109,16 +109,16 @@ http://www.mulesoft.org/schema/mule/ee/tracking http://www.mulesoft.org/schema/m
         <choice doc:name="Choice - Which Query">
             <when expression="#[payload.orderId != null]">
                 <set-variable variableName="id" value="#[payload.orderId]" doc:name="Set id flow var" />
-                <flow-ref name="getOrderdByIdSubFlow" doc:name="Call Get Orders By ID" />                
+                <flow-ref name="getOrderdByIdSubFlow" doc:name="getOrderdByIdSubFlow" />                
             </when>
             <when expression="#[payload.accountId != null]">
                 <logger message="Filter accountId: #[payload.accountId]" level="INFO" doc:name="Logger" />
-                <flow-ref name="getOrdersByAccountSubFlow" doc:name="Call Get Orders by Account" />
+                <flow-ref name="getOrdersByAccountSubFlow" doc:name="getOrdersByAccountSubFlow" />
             </when>
             <when expression="#[payload.caseId != null]">
                 <logger message="Filter CaseId: #[payload.caseId]" level="INFO" doc:name="Logger" />
                 <set-variable variableName="caseId" value="#[payload.caseId]" doc:name="Variable" />
-                <flow-ref name="getAccountByCaseIdFlow" doc:name="Call Accounts By Case ID"/>
+                <flow-ref name="getAccountByCaseIdFlow" doc:name="getAccountByCaseIdFlow"/>
             </when>
             <otherwise>
                 <scripting:transformer doc:name="Groovy - Throw 404">
@@ -141,12 +141,11 @@ http://www.mulesoft.org/schema/mule/ee/tracking http://www.mulesoft.org/schema/m
                 <http:query-param paramName="caseId" value="#[flowVars.caseId]"/>
                 <http:header headerName="Accept" value="application/json"/>
                 <http:header headerName="Content-Type" value="application/json"/>
-                <http:header headerName="client_id" value="${api.client_id}"/>
-                <http:header headerName="client_secret" value="${api.client_secret}"/>
+                <http:header headerName="client_id" value="${app.client_id}"/>
+                <http:header headerName="client_secret" value="${app.client_secret}"/>
             </http:request-builder>
         </http:request>
-        <logger message="#[payload:java.lang.String]" level="INFO" doc:name="Logger"/>
-        <dw:transform-message doc:name="Transform Message">
+        <dw:transform-message doc:name="convert to java">
             <dw:set-payload><![CDATA[%dw 1.0
 %output application/java
 ---
@@ -158,10 +157,10 @@ payload]]></dw:set-payload>
 %output application/java
 ---
 {
-	accountId: payload.accounts[0].id
+	accountId: payload.accounts[0].accountId
 }]]></dw:set-payload>
         </dw:transform-message>
-        <flow-ref name="getOrdersByAccountSubFlow" doc:name="Call Get Orders By ID"/>
+        <flow-ref name="getOrdersByAccountSubFlow" doc:name="getOrdersByAccountSubFlow"/>
     </flow>
 
     <flow name="get:/orders/{id}:api-config">

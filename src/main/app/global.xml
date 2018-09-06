@@ -1,15 +1,20 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
-<mule xmlns:http="http://www.mulesoft.org/schema/mule/http" xmlns:context="http://www.springframework.org/schema/context" xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+<mule xmlns:api-platform-gw="http://www.mulesoft.org/schema/mule/api-platform-gw" xmlns:http="http://www.mulesoft.org/schema/mule/http" xmlns:context="http://www.springframework.org/schema/context" xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
 	xmlns:spring="http://www.springframework.org/schema/beans" 
 	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
 	xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-current.xsd
 http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
 http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context-current.xsd
-http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd">
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/api-platform-gw http://www.mulesoft.org/schema/mule/api-platform-gw/current/mule-api-platform-gw.xsd">
     <context:property-placeholder location="classpath:/api.properties"/>
-    <http:request-config name="HTTP_Request_Order_Configuration" host="${api.customer360.host}" port="${api.customer360.port}" basePath="/exchange/b2cc42af-8763-43cf-a316-246ce7aefd04/customer-360/1.0.7/v1" doc:name="HTTP Request Configuration" protocol="HTTPS">
+    <http:request-config name="HTTP_Request_CustomerOrder_Configuration" host="${api.customer360.host}" port="${api.customer360.port}" basePath="/api" doc:name="HTTP Request Configuration" protocol="HTTPS">
         <http:raml-api-configuration location="https://anypoint.mulesoft.com/api/v1/organizations/b2cc42af-8763-43cf-a316-246ce7aefd04/assets/b2cc42af-8763-43cf-a316-246ce7aefd04/customer-360/1.0.7/api/root"/>
     </http:request-config>
     <http:request-config name="HTTP_Request_SFDC_Account_Configuration" protocol="HTTPS" host="${api.sfdc.account.host}" port="${api.sfdc.account.port}" basePath="/api" doc:name="HTTP Request Configuration"/>
+    <http:request-config name="HTTP_Request_Order_Configuration" protocol="HTTPS" host="${api.order.host}" port="${api.order.port}" basePath="/api" doc:name="HTTP Request Configuration">
+        <http:raml-api-configuration location="https://anypoint.mulesoft.com/api/v1/organizations/66234019-5a31-4239-ba28-4e6d70f0468a/assets/66234019-5a31-4239-ba28-4e6d70f0468a/order-api-spec/2.0.1/api/root"/>
+    </http:request-config>
+    <api-platform-gw:api apiName="${app.autodiscovery.name}" version="${app.autodiscovery.version}" flowRef="api-main" create="false" apikitRef="api-config" doc:name="API Autodiscovery"/>
 </mule>
