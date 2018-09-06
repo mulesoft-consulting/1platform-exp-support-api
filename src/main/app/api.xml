@@ -36,20 +36,22 @@ http://www.mulesoft.org/schema/mule/ee/tracking http://www.mulesoft.org/schema/m
             </http:request-builder>
         </http:request>
         <dw:transform-message doc:name="Build Response">
+            <dw:input-payload doc:sample="sample_data/json_1.json"/>
             <dw:set-payload><![CDATA[%dw 1.0
 %output application/json
-%var order = payload[0]
+%var today = now as :localdatetime {format:"yyyy-MM-dd'T'HH:MM"}
+
 ---
 {
 	entries: [{
-		accountId: order.customerId,
-		id: order.orderId,
+		accountId: payload.customerId,
+		id: payload.orderId,
 		name: null,
-		orderDate: order.orderDateTime,
-		sourceSystem: order.sourceSystem,
-		status: order.status,
-		totalPrice: order.totalAmount,
-		trackingNumber: order.trackingNumber
+		orderDate: payload.orderDateTime default today,
+		sourceSystem: payload.sourceSystem,
+		status: payload.status,
+		totalPrice: payload.totalAmount,
+		trackingNumber: payload.trackingNumber as :string
 	}]
 }]]></dw:set-payload>
             <dw:set-property propertyName="http.status"><![CDATA[%dw 1.0
@@ -57,6 +59,7 @@ http://www.mulesoft.org/schema/mule/ee/tracking http://www.mulesoft.org/schema/m
 ---
 200]]></dw:set-property>
         </dw:transform-message>
+        <logger message="#[payload:java.lang.String]" level="INFO" doc:name="Logger"/>
     </sub-flow>
     <sub-flow name="getOrdersByAccountSubFlow">
         <logger level="INFO" doc:name="Logger" message="Called by id: #[payload.accountId]"/>
@@ -73,16 +76,18 @@ http://www.mulesoft.org/schema/mule/ee/tracking http://www.mulesoft.org/schema/m
             <dw:input-payload doc:sample="sample_data/json.json"/>
             <dw:set-payload><![CDATA[%dw 1.0
 %output application/json
+%var today = now as :localdatetime {format:"yyyy-MM-dd'T'HH:MM"}
 ---
 { entries:
 		(payload.orders map ((order , indexOfOrder) -> {
 			accountId: payload.id,
+			(caseId: flowVars.caseId) when flowVars.caseId != null,
 			id: order.orderId,
-			orderDate: order.orderDateTime,
+			orderDate: order.orderDateTime default today,
 			sourceSystem: order.sourceSystem,
 			status: order.status,
 			totalPrice: order.totalAmount,
-			trackingNumber: order.trackingNumber
+			trackingNumber: order.trackingNumber as :string
 		})) when inboundProperties.'http.status' == 200 otherwise []
 }]]></dw:set-payload>
             <dw:set-property propertyName="http.status"><![CDATA[%dw 1.0
@@ -90,6 +95,7 @@ http://www.mulesoft.org/schema/mule/ee/tracking http://www.mulesoft.org/schema/m
 ---
 200]]></dw:set-property>
         </dw:transform-message>
+        <logger message="#[payload:java.lang.String]" level="INFO" doc:name="Logger"/>
     </sub-flow>
     <flow name="get:/orders:api-config">
         <logger message="Get Orders was Called!" level="INFO" doc:name="Logger" />
