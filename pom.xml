@@ -60,6 +60,39 @@
 					</execution>
 				</executions>
 			</plugin>
+			<plugin>
+				<groupId>org.mule.tools.maven</groupId>
+				<artifactId>mule-maven-plugin</artifactId>
+				<version>2.1</version>
+				<configuration>
+					<deploymentType>cloudhub</deploymentType>
+					<muleVersion>${mule.version}</muleVersion>
+					<username>${anypoint.username}</username>
+					<password>${anypoint.password}</password>
+					<redeploy>true</redeploy>
+					<environment>${cloudhub.environment}</environment>
+					<applicationName>${cloudhub.app}</applicationName>
+					<businessGroup>${cloudhub.bg}</businessGroup>
+					<workerType>Micro</workerType>
+ 					<properties>
+				       <anypoint.platform.analytics_base_uri>https://analytics-ingest.anypoint.mulesoft.com</anypoint.platform.analytics_base_uri>
+				       <anypoint.platform.coreservice_base_uri>https://anypoint.mulesoft.com/accounts</anypoint.platform.coreservice_base_uri>
+				       <anypoint.platform.platform_base_uri>https://anypoint.mulesoft.com/apiplatform</anypoint.platform.platform_base_uri>
+				       <anypoint.platform.contracts_base_uri>https://anypoint.mulesoft.com/apigateway/ccs</anypoint.platform.contracts_base_uri>
+				       <anypoint.platform.client_id>${env.ANYPOINT_CLIENT_ID}</anypoint.platform.client_id>
+				       <anypoint.platform.client_secret>${env.ANYPOINT_CLIENT_SECRET}</anypoint.platform.client_secret>
+ 				    </properties>
+				</configuration>
+				<executions>
+					<execution>
+						<id>deploy</id>
+						<phase>deploy</phase>
+						<goals>
+							<goal>deploy</goal>
+						</goals>
+					</execution>
+				</executions>
+			</plugin>
 		</plugins>
 	</build>
 
