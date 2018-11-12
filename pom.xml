@@ -83,7 +83,7 @@
 					<environment>${cloudhub.environment}</environment>
 					<applicationName>${cloudhub.app}</applicationName>
 					<businessGroup>${cloudhub.bg}</businessGroup>
-					<workerType>${worker.type}</workerType>
+					<workerType>${cloudhub.worker}</workerType>
  					<properties>
 				       <anypoint.platform.analytics_base_uri>https://analytics-ingest.anypoint.mulesoft.com</anypoint.platform.analytics_base_uri>
 				       <anypoint.platform.coreservice_base_uri>https://anypoint.mulesoft.com/accounts</anypoint.platform.coreservice_base_uri>
