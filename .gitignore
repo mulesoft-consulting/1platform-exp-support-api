@@ -24,6 +24,8 @@ local.properties
 .settings/
 .loadpath
 *.properties
+*.jks
+
 # Recommended for Maven based projects 
 .project
 .classpath
