@@ -141,7 +141,6 @@ http://www.mulesoft.org/schema/mule/ee/tracking http://www.mulesoft.org/schema/m
         <set-payload value="#[NullPayload.getInstance()]" doc:name="Set Payload"/>
     </flow>
     <flow name="getAccountByCaseIdFlow">
-        <logger message="&quot;Estoy en subfow&quot;" level="INFO" category="&quot;@@@@@@@&quot;" doc:name="Logger"/>
         <http:request config-ref="HTTP_Request_SFDC_Account_Configuration" path="/accounts" method="GET" doc:name="Get Account By Case ID">
             <http:request-builder>
                 <http:query-param paramName="caseId" value="#[flowVars.caseId]"/>
@@ -170,7 +169,6 @@ payload]]></dw:set-payload>
     </flow>
 
     <flow name="get:/orders/{id}:api-config">
-        <logger message="Call Get By ID" level="INFO" category="@@@@@@@" doc:name="Logger"/>
         <dw:transform-message doc:name="Transform Message">
             <dw:set-payload><![CDATA[%dw 1.0
 %output application/json
